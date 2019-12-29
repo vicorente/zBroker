@@ -12,22 +12,9 @@ with Ada.Containers.Ordered_Maps;
 
 package body Zbroker is
 
-    Ctx         : ZMQ.Contexts.Context;
-    Socket      : ZMQ.Sockets.Socket;
-    Output_Socket : ZMQ.Sockets.Socket;
-    Port : Integer := 5500;
-    Output_Port : Integer := 5502;
-
-    Port_Img : constant String := Port'Img;
-    Output_Port_Img : constant String := Output_Port'Img;
-
-    -- Endpoint for the publisher
-    Publisher_Endpoint : Unbounded_String := To_Unbounded_String("tcp://localhost"  & ":" & Port_Img (2 .. Port_Img'Last));
-
-    -- Endpoint for sending messages
-    Output_Endpoint : Sock_Addr_Type := (Family => Family_Inet,
-                                        Addr => Addresses (Get_Host_By_Name (Host_Name), 1),
-                                        Port => Port_Type(Output_Port));
+    Ctx               : ZMQ.Contexts.Context;
+    Input_Socket      : ZMQ.Sockets.Socket;
+    Output_Socket     : ZMQ.Sockets.Socket;
 
     package Topics_Containter is new Ada.Containers.Ordered_Maps
       (Element_Type => Unbounded_String,
@@ -95,8 +82,8 @@ package body Zbroker is
 
     procedure On_Message_Default(Topic: in String; Payload: in String) is
     begin
-        Put_Line ("MQTT: Message received but On_Message callback not defined ");
-        Put_Line ("MQTT: Topic:" & Topic & " , Payload:" & Payload);
+        Put_Line ("ZMQTT: Message received but On_Message callback not defined ");
+        Put_Line ("ZMQTT: Topic:" & Topic & " , Payload:" & Payload);
     end On_Message_Default;
 
     On_Message : On_Message_Callback := On_Message_Default'Access;
@@ -123,19 +110,18 @@ package body Zbroker is
                 -- This way we can subscribe only to the topics we
                 -- are interested in
                 Input_Message.Initialize(0);
-                Put_Line("ESCUCHANDO en " & To_String(Publisher_Endpoint));
+                Input_Socket.Recv (Input_Message);
 
-                Socket.Recv (Input_Message);
                 declare
                     Topic_String : String := To_String(Input_Message.GetData);
                 begin
                     -- Receiving the second part of message, message type
                     Input_Message.Initialize(0);
-                    Socket.Recv (Input_Message);
+                    Input_Socket.Recv (Input_Message);
                     On_Message (Topic_String, To_String(Input_Message.GetData));
                 exception
                     when others =>
-                        Put_Line("Exception Subscriber");
+                        Put_Line("ERROR :: Exception receiving ZMQTT Message");
                 end;
             end;
         end loop;
@@ -143,17 +129,30 @@ package body Zbroker is
 
     Listen_Task : Listen_Task_Type;
 
-    procedure Connect ( Host: in String; Port: in Integer) is
+    procedure Connect ( Host: in String; Broker_Pub_Port: in Integer; Broker_Input_Port: in Integer) is
 
+        Input_Port_Img : constant String := Broker_Pub_Port'Img;
+        Output_Port_Img : constant String := Broker_Input_Port'Img;
+
+        -- Endpoint for the publisher
+        Publisher_Endpoint : Unbounded_String := To_Unbounded_String("tcp://" & Host & ":" & Input_Port_Img (2 .. Input_Port_Img'Last));
+
+        -- Endpoint for sending messages
+        Output_Endpoint : Unbounded_String := To_Unbounded_String("tcp://" & Host & ":" & Output_Port_Img (2 .. Output_Port_Img'Last));
     begin
+        Put_Line("----------------------------->   " & To_String(Publisher_Endpoint));
+        Put_Line("----------------------------->   " & To_String(Output_Endpoint));
         Output_Socket.Initialize(Ctx, ZMQ.Sockets.DEALER);
         Output_Socket.Set_Send_Timeout(Timeout => 0.0);
-        Output_Socket.Connect ("tcp://" &  Image(Output_Endpoint));
+        Output_Socket.Connect (Address => Output_Endpoint);
 
-        Socket.Initialize (Ctx, ZMQ.Sockets.SUB);
-        Socket.Connect(Address => Publisher_Endpoint);
+        Input_Socket.Initialize (Ctx, ZMQ.Sockets.SUB);
+        Input_Socket.Connect(Address => Publisher_Endpoint);
+        -- Start listening to all topics
         Listen_Task.Start;
-
+    exception
+        when others =>
+            Put_Line("ERROR::Exception connecting to ZMQTT broker");
     end Connect;
 
 
@@ -162,24 +161,21 @@ package body Zbroker is
     begin
         Topics_List.Set(Topic => Topic,
                         Msg   => "");
-        Socket.Establish_Message_Filter(Value => Topic);
+        Input_Socket.Establish_Message_Filter(Value => Topic);
     end Subscribe;
 
     procedure Unsubscribe (Topic: in String) is
 
     begin
         Topics_List.Delete(Topic => Topic);
-        Socket.Remove_Message_Filter(Value => Topic);
+        Input_Socket.Remove_Message_Filter(Value => Topic);
     end Unsubscribe;
 
     procedure Publish (Topic, Msg: in String) is
-        Output_Message :  ZMQ.Messages.Message;
-
     begin
         Output_Socket.Send(Topic, ZMQ.Sockets.Send_More);
         -- Second part is message type
         Output_Socket.Send(Msg, 0);
-        Put_Line("Sending...");
     end Publish;
 
     function Get_Value (Topic: String) return String is
@@ -194,7 +190,7 @@ package body Zbroker is
 
     procedure Disconnect is
     begin
-        Socket.Finalize;
+        Input_Socket.Finalize;
     end Disconnect;
 
 

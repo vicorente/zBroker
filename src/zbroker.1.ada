@@ -28,9 +28,10 @@ package Zbroker is
     -- This function connects to broker.
     -- Parameters:
     --    - Host: the hostname or ip address of the broker to connect to.
-    --    - Port: the network port to connect to.
+    --    - Broker_Pub_Port: the network port to subscribe to
+    --    - Broker_Input_Port: the network port to send messages to
     --
-    procedure Connect ( Host: in String; Port: in Integer);
+    procedure Connect ( Host: in String; Broker_Pub_Port: in Integer; Broker_Input_Port: in Integer);
 
     -- Function: Subscribe
     -- Subscribe to topic.
