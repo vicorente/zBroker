@@ -33,6 +33,8 @@ package body Zbroker is
         -- returns the value associated to this topic
         function Get (Topic : String) return String;
 
+        procedure Delete_All;
+
     private
         Topic_List : Topics_Containter.Map;
     end Protected_Topics_List;
@@ -75,6 +77,15 @@ package body Zbroker is
         begin
             return To_String(Topics_Containter.Element(Topic_List,To_Unbounded_String(Topic)));
         end Get;
+
+        procedure Delete_All is
+        begin
+            for Item in Topic_List.Iterate loop
+                Input_Socket.Remove_Message_Filter(Value => Topics_Containter.Key(Position => Item));
+            end loop;
+
+            Topic_List.Clear;
+        end Delete_All;
 
     end Protected_Topics_List;
 
@@ -170,6 +181,12 @@ package body Zbroker is
         Topics_List.Delete(Topic => Topic);
         Input_Socket.Remove_Message_Filter(Value => Topic);
     end Unsubscribe;
+
+    procedure Unsubscribe_All is
+
+    begin
+        Topics_List.Delete_All;
+    end Unsubscribe_All;
 
     procedure Publish (Topic, Msg: in String) is
     begin

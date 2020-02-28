@@ -33,14 +33,18 @@ package Zbroker is
     --
     procedure Connect ( Host: in String; Broker_Pub_Port: in Integer; Broker_Input_Port: in Integer);
 
-    -- Function: Subscribe
+    -- Function: Unsubscribe
     -- Subscribe to topic.
     -- Parameters:
     --    - Topic: topic to unsusbcribe to of String type.
     --
     procedure Unsubscribe (Topic: in String);
 
-    -- Function: Unsubscribe
+    -- Function: Unsubscribe_All
+    -- Unsubscribe to all topics.
+    procedure Unsubscribe_All;
+
+    -- Function: Subscribe
     -- Subscribe to topic.
     -- Parameters:
     --    - Topic: topic to susbcribe to of String type.
